@@ -1,1 +1,61 @@
-/venv
+# Virtual environments
+venv/
+tf_env/
+env/
+.env
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# API keys and secrets
+.env
+*.key
+config.json
+secrets.json
+
+# Trading data
+data/
+*.csv
+*.json
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Large model files
+*.pkl
+*.h5
+*.model
+
+# Test outputs
+test_output/
+screenshots/
+
+# Jupyter notebooks checkpoints
+.ipynb_checkpoints/
