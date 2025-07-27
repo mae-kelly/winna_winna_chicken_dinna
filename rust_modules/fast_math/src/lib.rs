@@ -1,5 +1,5 @@
 use pyo3::prelude::*;
-use numpy::{PyArray1, PyReadonlyArray1};
+use numpy::PyReadonlyArray1;
 
 #[pyclass]
 pub struct FastMathEngine;
@@ -42,10 +42,53 @@ impl FastMathEngine {
         
         Ok(rsi)
     }
+
+    fn fast_bollinger_bands(&self, prices: PyReadonlyArray1<f64>, period: usize, std_dev: f64) 
+        -> PyResult<(f64, f64, f64)> {
+        let prices = prices.as_slice()?;
+        if prices.len() < period {
+            let last = *prices.last().unwrap_or(&0.0);
+            return Ok((last, last, last));
+        }
+
+        let recent = &prices[prices.len() - period..];
+        let (sum, sum_sq) = recent.iter().fold((0.0, 0.0), |(s, sq), &p| (s + p, sq + p * p));
+        let mean = sum / period as f64;
+        let variance = sum_sq / period as f64 - mean * mean;
+        let std = variance.sqrt() * std_dev;
+
+        Ok((mean + std, mean, mean - std))
+    }
+
+    fn fast_ema(&self, prices: PyReadonlyArray1<f64>, period: usize) -> PyResult<f64> {
+        let prices = prices.as_slice()?;
+        if prices.is_empty() { return Ok(0.0); }
+
+        let alpha = 2.0 / (period as f64 + 1.0);
+        let beta = 1.0 - alpha;
+        
+        Ok(prices.iter().skip(1).fold(prices[0], |ema, &price| alpha * price + beta * ema))
+    }
+
+    fn fast_volatility(&self, prices: PyReadonlyArray1<f64>, window: usize) -> PyResult<f64> {
+        let prices = prices.as_slice()?;
+        
+        if prices.len() < 2 { return Ok(0.0); }
+
+        let returns: Vec<f64> = prices.windows(2).map(|w| (w[1] / w[0]).ln()).collect();
+        let end = returns.len();
+        let start = end.saturating_sub(window);
+        let slice = &returns[start..];
+        
+        let mean = slice.iter().sum::<f64>() / slice.len() as f64;
+        let variance = slice.iter().map(|r| (r - mean).powi(2)).sum::<f64>() / slice.len() as f64;
+
+        Ok(variance.sqrt())
+    }
 }
 
 #[pymodule]
-fn fast_math(_py: Python, m: &PyModule) -> PyResult<()> {
+fn fast_math(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<FastMathEngine>()?;
     Ok(())
 }
