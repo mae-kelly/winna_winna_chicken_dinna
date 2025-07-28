@@ -38,11 +38,6 @@ logs/
 config.json
 secrets.json
 
-# Trading data
-data/
-*.csv
-*.json
-
 # Temporary files
 tmp/
 temp/
@@ -57,5 +52,16 @@ temp/
 test_output/
 screenshots/
 
+# Simulation/fake data (excluded)
+*_simulation.py
+*_fake.py
+*_demo.py
+fake_data/
+simulation_results/
+
 # Jupyter notebooks checkpoints
 .ipynb_checkpoints/
+
+# Real trading logs (keep these)
+!trading_logs/
+!real_trades.log
