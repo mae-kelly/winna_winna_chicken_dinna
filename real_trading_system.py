@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-🚀 REAL CRYPTO TRADING SYSTEM
+🚀 REAL CRYPTO TRADING SYSTEM - FIXED VERSION
 Live data only - No simulations or fake data
 Two modes: Live execution or Paper execution (real prices, terminal trades)
 """
@@ -66,7 +66,7 @@ class RealMarketDataFeed:
         self.callbacks.append(callback)
     
     async def get_live_prices(self, symbols: List[str]) -> Dict[str, Dict]:
-        """Get real live prices from OKX exchange"""
+        """Get real live prices from OKX exchange - FIXED VERSION"""
         try:
             # Convert symbols to OKX format
             okx_symbols = [s.replace('USDT', '-USDT') for s in symbols]
@@ -81,6 +81,7 @@ class RealMarketDataFeed:
                 data = await response.json()
                 
                 if 'data' not in data:
+                    logger.warning("No data field in OKX response")
                     return {}
                 
                 result = {}
@@ -89,28 +90,49 @@ class RealMarketDataFeed:
                     symbol = inst_id.replace('-USDT', 'USDT')
                     
                     if symbol in symbols:
-                        price_data = {
-                            'symbol': symbol,
-                            'price': float(ticker['last']),
-                            'bid': float(ticker['bidPx']) if ticker['bidPx'] else 0,
-                            'ask': float(ticker['askPx']) if ticker['askPx'] else 0,
-                            'volume': float(ticker['vol24h']) if ticker['vol24h'] else 0,
-                            'change_24h': float(ticker['chgUtc0']) * 100 if ticker['chgUtc0'] else 0,
-                            'timestamp': time.time()
-                        }
-                        result[symbol] = price_data
+                        # FIXED: Handle missing or different field names safely
+                        try:
+                            # Try different possible field names for 24h change
+                            change_24h = 0.0
+                            for change_field in ['chgUtc0', 'change24h', 'priceChangePercent', 'chg24h']:
+                                if change_field in ticker and ticker[change_field]:
+                                    change_24h = float(ticker[change_field]) * 100
+                                    break
+                            
+                            price_data = {
+                                'symbol': symbol,
+                                'price': float(ticker['last']) if ticker.get('last') else 0.0,
+                                'bid': float(ticker['bidPx']) if ticker.get('bidPx') else 0.0,
+                                'ask': float(ticker['askPx']) if ticker.get('askPx') else 0.0,
+                                'volume': float(ticker['vol24h']) if ticker.get('vol24h') else 0.0,
+                                'change_24h': change_24h,
+                                'timestamp': time.time()
+                            }
+                            
+                            # Only add if we have a valid price
+                            if price_data['price'] > 0:
+                                result[symbol] = price_data
+                                
+                                # Update cache
+                                self.price_cache[symbol] = price_data
+                                
+                                # Notify callbacks
+                                for callback in self.callbacks:
+                                    await callback(price_data)
                         
-                        # Update cache
-                        self.price_cache[symbol] = price_data
-                        
-                        # Notify callbacks
-                        for callback in self.callbacks:
-                            await callback(price_data)
+                        except (ValueError, TypeError, KeyError) as e:
+                            logger.warning(f"Error processing ticker for {symbol}: {e}")
+                            continue
                 
+                logger.info(f"📡 Retrieved prices for {len(result)} symbols")
                 return result
                 
         except Exception as e:
             logger.error(f"Failed to get live prices: {e}")
+            # Return cached data if available
+            if self.price_cache:
+                logger.info("Using cached price data")
+                return self.price_cache
             return {}
 
 class RealTechnicalAnalysis:
@@ -121,6 +143,9 @@ class RealTechnicalAnalysis:
     
     def update_price(self, symbol: str, price: float):
         """Update price history with real data"""
+        if symbol not in self.price_history:
+            self.price_history[symbol] = deque(maxlen=200)
+            
         self.price_history[symbol].append({
             'price': price,
             'timestamp': time.time()
@@ -369,7 +394,9 @@ class RealTradingSystem:
                 prices = await self.data_feed.get_live_prices(self.symbols)
                 
                 if prices:
-                    print(f"📡 Live prices updated: {len(prices)} symbols")
+                    logger.info(f"📡 Live prices updated: {len(prices)} symbols")
+                else:
+                    logger.warning("⚠️ No price data received")
                 
                 await asyncio.sleep(5)  # Update every 5 seconds
                 
@@ -503,6 +530,24 @@ async def main():
             mode = 'live'
         elif '--paper' in os.sys.argv:
             mode = 'paper'
+        elif '--test' in os.sys.argv:
+            # Quick test mode
+            print("🧪 Running quick market data test...")
+            data_feed = RealMarketDataFeed()
+            await data_feed.start()
+            
+            symbols = ['BTCUSDT', 'ETHUSDT']
+            prices = await data_feed.get_live_prices(symbols)
+            
+            if prices:
+                print("✅ Market data test successful!")
+                for symbol, data in prices.items():
+                    print(f"   {symbol}: ${data['price']:.2f}")
+            else:
+                print("❌ Market data test failed!")
+            
+            await data_feed.stop()
+            return
     
     if mode == 'live':
         print("🔴 LIVE TRADING MODE SELECTED")
